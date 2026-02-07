@@ -2,13 +2,17 @@ import * as THREE from 'three';
 
 export function createResizeHandler(
   camera: THREE.PerspectiveCamera,
-  renderer: THREE.WebGLRenderer
+  renderer: THREE.WebGLRenderer,
+  onResizeExtra?: (width: number, height: number) => void
 ): () => void {
   const onResize = () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    camera.aspect = width / height;
     camera.updateProjectionMatrix();
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(width, height);
+    onResizeExtra?.(width, height);
   };
 
   window.addEventListener('resize', onResize);

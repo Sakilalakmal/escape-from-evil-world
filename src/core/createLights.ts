@@ -13,13 +13,16 @@ export function createLights(): THREE.Group {
   const sun = new THREE.DirectionalLight(0xe6ffcf, 1.2);
   sun.position.set(35, 48, 18);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.mapSize.set(1536, 1536);
   sun.shadow.camera.near = 1;
   sun.shadow.camera.far = 180;
   sun.shadow.camera.left = -70;
   sun.shadow.camera.right = 70;
   sun.shadow.camera.top = 70;
   sun.shadow.camera.bottom = -70;
+  sun.shadow.normalBias = 0.025;
+  sun.shadow.bias = -0.0002;
+  sun.shadow.radius = 3;
   lights.add(sun);
 
   const sunTarget = new THREE.Object3D();

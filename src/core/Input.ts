@@ -8,6 +8,10 @@ export class Input {
   private readonly keysPressed = new Set<string>();
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
+    if (event.code === 'Space' || event.code === 'Tab') {
+      event.preventDefault();
+    }
+
     if (!this.keysDown.has(event.code)) {
       this.keysPressed.add(event.code);
     }
@@ -15,6 +19,10 @@ export class Input {
   };
 
   private readonly onKeyUp = (event: KeyboardEvent): void => {
+    if (event.code === 'Space' || event.code === 'Tab') {
+      event.preventDefault();
+    }
+
     this.keysDown.delete(event.code);
   };
 

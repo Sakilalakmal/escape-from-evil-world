@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { AudioManager } from './audio/AudioManager';
 import { CollisionWorld } from './core/CollisionWorld';
 import { Input } from './core/Input';
 import { PointerLock } from './core/PointerLock';
+import { PostFX } from './core/PostFX';
 import { Time } from './core/Time';
 import { createCamera } from './core/createCamera';
 import { createLights } from './core/createLights';
@@ -17,6 +17,7 @@ import { Player } from './player/Player';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera';
 import { Overlay } from './ui/Overlay';
 import { Campfire } from './world/Campfire';
+import { Gate } from './world/Gate';
 import { createFog } from './world/createFog';
 import { createGround } from './world/createGround';
 import { createRuinsBlockout } from './world/createRuinsBlockout';
@@ -27,6 +28,9 @@ import './ui/overlay.css';
 const WORLD_EDGE = 102;
 const BOUNDARY_HEIGHT = 18;
 const BOUNDARY_THICKNESS = 3;
+const SPAWN_PAN_DURATION = 2;
+const ENABLE_SPAWN_PAN = true;
+const ENABLE_SAO = false;
 
 const app = document.querySelector<HTMLDivElement>('#app');
 
@@ -99,12 +103,18 @@ async function bootstrap(): Promise<void> {
   scene.add(crowd.zoneAnchor);
   await crowd.load();
 
+  const gate = new Gate(new THREE.Vector3(0, 0, 94), campfire.center);
+  scene.add(gate.group);
+  collisionWorld.addBoxes(gate.solidColliders);
+  collisionWorld.addWalkableSurfaces(gate.walkableSurfaces);
+
   const player = await Player.create();
-  player.object.position.set(0, 0, 28);
+  player.object.position.copy(gate.spawnPosition);
+  player.object.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), gate.spawnYaw);
   scene.add(player.object);
 
   const pointerLock = new PointerLock(renderer.domElement);
-  pointerLock.setAngles(Math.PI, THREE.MathUtils.degToRad(-10));
+  pointerLock.setAngles(gate.spawnYaw, THREE.MathUtils.degToRad(-11));
 
   const controller = new CharacterController(
     player,
@@ -112,89 +122,134 @@ async function bootstrap(): Promise<void> {
     collisionWorld,
     () => pointerLock.yaw
   );
-  const followCamera = new ThirdPersonCamera(camera, player.object);
+
+  const followCamera = new ThirdPersonCamera(camera, player.object, collisionWorld);
   followCamera.setLookAngles(pointerLock.yaw, pointerLock.pitch);
   followCamera.snap();
-
-  const debugTarget = new THREE.Vector3();
-  const debugControls = new OrbitControls(camera, renderer.domElement);
-  debugControls.enableDamping = true;
-  debugControls.enabled = false;
-  debugControls.minDistance = 3;
-  debugControls.maxDistance = 80;
-  debugControls.maxPolarAngle = Math.PI * 0.49;
 
   const audio = new AudioManager(camera, campfire.audioAnchor);
   audio.setAudioStateListener((enabled) => overlay.setAudioEnabled(enabled));
   await audio.load();
 
-  let hintsFadingStarted = false;
-  const enterExperience = (): void => {
-    if (debugControls.enabled) {
+  const postFX = new PostFX(renderer, scene, camera, { enableSAO: ENABLE_SAO });
+  postFX.setSize(window.innerWidth, window.innerHeight);
+  createResizeHandler(camera, renderer, (width, height) => postFX.setSize(width, height));
+
+  let hasEnteredWorld = false;
+  let hudVisible = true;
+  let spawnPanActive = false;
+  let spawnPanTime = 0;
+
+  const panStartPosition = gate.center.clone().add(new THREE.Vector3(0, 5.2, 8.5));
+  const panEndPosition = new THREE.Vector3(0, 4.5, 15.5);
+  const panStartLookAt = gate.center.clone().add(new THREE.Vector3(0, 2.1, -5));
+  const panEndLookAt = campfire.center.clone().add(new THREE.Vector3(0, 1.4, 0));
+  const panCurrentLookAt = new THREE.Vector3();
+
+  const enterWorld = (): void => {
+    if (hasEnteredWorld) {
       return;
     }
+
+    hasEnteredWorld = true;
+    spawnPanActive = ENABLE_SPAWN_PAN;
+    spawnPanTime = 0;
+
+    overlay.hideIntro();
+    overlay.fadeFromBlack(800);
+    overlay.setHudVisible(hudVisible);
 
     pointerLock.requestLock();
     void audio.enableAudio();
-    if (!hintsFadingStarted) {
-      overlay.fadeHintsAfter(5000);
-      hintsFadingStarted = true;
+
+    if (spawnPanActive) {
+      camera.position.copy(panStartPosition);
+      camera.lookAt(panStartLookAt);
+    } else {
+      followCamera.snap();
     }
   };
 
-  overlay.onEnterRequest(enterExperience);
-  renderer.domElement.addEventListener('click', enterExperience);
+  overlay.onEnterRequest(enterWorld);
 
-  pointerLock.onLockChange((locked) => {
-    if (debugControls.enabled) {
-      overlay.setEnterVisible(false);
-      return;
+  renderer.domElement.addEventListener('click', () => {
+    if (hasEnteredWorld && !pointerLock.isLocked()) {
+      pointerLock.requestLock();
     }
-
-    overlay.setEnterVisible(!locked);
   });
 
-  overlay.setMode('Explore');
-  overlay.setEnterVisible(true);
+  pointerLock.onLockChange((locked) => {
+    overlay.setPointerHintVisible(hasEnteredWorld && !locked);
+  });
 
-  createResizeHandler(camera, renderer);
+  const distanceScratch = new THREE.Vector3();
 
   const loop = createLoop(() => {
     const deltaSeconds = time.tick();
-    pointerLock.update(deltaSeconds);
+    campfire.update(time.elapsed);
+    crowd.update(deltaSeconds);
 
-    if (input.consumePress('KeyC')) {
-      debugControls.enabled = !debugControls.enabled;
-
-      if (debugControls.enabled) {
-        pointerLock.setEnabled(false);
-        overlay.setMode('Debug');
-        overlay.setEnterVisible(false);
-      } else {
-        pointerLock.setEnabled(true);
-        overlay.setMode('Explore');
-        overlay.setEnterVisible(!pointerLock.isLocked());
-        followCamera.snap();
-      }
+    if (!hasEnteredWorld) {
+      player.update(deltaSeconds);
+      postFX.render();
+      input.clearPressed();
+      return;
     }
 
+    if (input.consumePress('Tab')) {
+      hudVisible = !hudVisible;
+      overlay.setHudVisible(hudVisible);
+    }
+
+    pointerLock.update(deltaSeconds);
     const movement = controller.update(deltaSeconds);
     player.update(deltaSeconds);
-    crowd.update(deltaSeconds);
-    campfire.update(time.elapsed);
+    followCamera.setLookAngles(pointerLock.yaw, pointerLock.pitch);
 
-    if (debugControls.enabled) {
-      debugTarget.copy(player.object.position).y += 1.6;
-      debugControls.target.copy(debugTarget);
-      debugControls.update();
+    if (spawnPanActive) {
+      spawnPanTime += deltaSeconds;
+      const t = THREE.MathUtils.clamp(spawnPanTime / SPAWN_PAN_DURATION, 0, 1);
+      const eased = t * t * (3 - 2 * t);
+
+      camera.position.lerpVectors(panStartPosition, panEndPosition, eased);
+      panCurrentLookAt.lerpVectors(panStartLookAt, panEndLookAt, eased);
+      camera.lookAt(panCurrentLookAt);
+
+      if (t >= 1) {
+        spawnPanActive = false;
+        followCamera.snap();
+      }
     } else {
-      followCamera.setLookAngles(pointerLock.yaw, pointerLock.pitch);
-      followCamera.update(deltaSeconds);
+      followCamera.update(deltaSeconds, movement);
     }
 
     overlay.setCompassYaw(pointerLock.yaw);
     audio.update(deltaSeconds, movement, player.object.position);
-    renderer.render(scene, camera);
+
+    const distanceToCampfire = player.object.position.distanceTo(campfire.center);
+    const distanceToDancers = player.object.position.distanceTo(crowd.zoneCenter);
+    distanceScratch
+      .copy(player.object.position)
+      .sub(ruins.stairsTopCenter)
+      .setY(0);
+    const atStairsTop =
+      player.object.position.y >= ruins.stairsTopY - 0.2 &&
+      distanceScratch.length() < 11;
+
+    overlay.setObjectiveCompleted('campfire', distanceToCampfire < 7.5);
+    overlay.setObjectiveCompleted('dancers', distanceToDancers < 10.5);
+    overlay.setObjectiveCompleted('stairs', atStairsTop);
+
+    const distanceToGate = player.object.position.distanceTo(gate.center);
+    if (distanceToCampfire < 5.5) {
+      overlay.setContextPrompt('Press E to Warm Up');
+    } else if (distanceToGate < 7.8) {
+      overlay.setContextPrompt('Press E to Leave');
+    } else {
+      overlay.setContextPrompt(null);
+    }
+
+    postFX.render();
     input.clearPressed();
   });
 

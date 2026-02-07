@@ -6,6 +6,8 @@ export type RuinsBlockout = {
   solidColliders: BoxCollider[];
   walkableSurfaces: WalkableSurface[];
   corner: THREE.Vector3;
+  stairsTopCenter: THREE.Vector3;
+  stairsTopY: number;
 };
 
 const RUINS_CORNER = new THREE.Vector3(50, 0, -62);
@@ -17,9 +19,10 @@ function tintGeometry(geometry: THREE.BufferGeometry, variance = 0.18): void {
 
   for (let i = 0; i < position.count; i += 1) {
     const y = position.getY(i);
-    const noise = (Math.sin(position.getX(i) * 1.7 + position.getZ(i) * 2.1) + 1) * 0.5;
-    const shade = 0.62 + noise * variance + y * 0.015;
-    color.setRGB(shade, shade * 1.02, shade * 1.08);
+    const noise =
+      (Math.sin(position.getX(i) * 1.8 + position.getZ(i) * 2.4) + 1) * 0.5;
+    const shade = 0.47 + noise * variance + y * 0.012;
+    color.setRGB(shade, shade * 1.03, shade * 0.98);
     colors[i * 3 + 0] = color.r;
     colors[i * 3 + 1] = color.g;
     colors[i * 3 + 2] = color.b;
@@ -64,9 +67,9 @@ export function createRuinsBlockout(): RuinsBlockout {
   const walkableSurfaces: WalkableSurface[] = [];
 
   const stoneMaterial = new THREE.MeshStandardMaterial({
-    color: 0x78807b,
-    roughness: 0.92,
-    metalness: 0.02,
+    color: 0x7b8076,
+    roughness: 0.87,
+    metalness: 0.07,
     vertexColors: true
   });
 
@@ -163,6 +166,8 @@ export function createRuinsBlockout(): RuinsBlockout {
     group,
     solidColliders: colliders,
     walkableSurfaces,
-    corner: RUINS_CORNER.clone()
+    corner: RUINS_CORNER.clone(),
+    stairsTopCenter: platformCenter.clone().add(RUINS_CORNER),
+    stairsTopY: RUINS_CORNER.y + platformCenter.y + platformSize.y * 0.5
   };
 }

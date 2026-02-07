@@ -20,6 +20,8 @@ export class Campfire {
 
   private readonly flameLight = new THREE.PointLight(0xff8b2d, 2.8, 45, 2);
   private readonly embers: Ember[] = [];
+  private flameOuter: THREE.Mesh | null = null;
+  private flameCore: THREE.Mesh | null = null;
 
   constructor(center = new THREE.Vector3(0, 0, 0)) {
     this.center = center.clone();
@@ -38,6 +40,22 @@ export class Campfire {
     const flutter = Math.sin(elapsedSeconds * 17.2 + 1.2) * 0.2;
     this.flameLight.intensity = 2.8 + pulse + flutter;
     this.flameLight.distance = 42 + Math.sin(elapsedSeconds * 3.5) * 2;
+    const flameScale = 1 + Math.sin(elapsedSeconds * 11.4) * 0.06;
+    const emissivePulse = 1.8 + pulse * 0.35 + flutter * 0.4;
+
+    if (this.flameOuter) {
+      this.flameOuter.scale.set(1, flameScale, 1);
+      (
+        this.flameOuter.material as THREE.MeshStandardMaterial
+      ).emissiveIntensity = emissivePulse;
+    }
+
+    if (this.flameCore) {
+      this.flameCore.scale.setScalar(0.95 + flameScale * 0.08);
+      (
+        this.flameCore.material as THREE.MeshStandardMaterial
+      ).emissiveIntensity = emissivePulse + 0.35;
+    }
 
     for (const ember of this.embers) {
       const t = (elapsedSeconds * ember.speed + ember.phase) % 1;
@@ -131,7 +149,7 @@ export class Campfire {
       new THREE.MeshStandardMaterial({
         color: 0xff9f3d,
         emissive: 0xff5f0d,
-        emissiveIntensity: 1.25,
+        emissiveIntensity: 1.95,
         roughness: 0.4,
         metalness: 0
       })
@@ -145,15 +163,17 @@ export class Campfire {
       new THREE.MeshStandardMaterial({
         color: 0xffc668,
         emissive: 0xff8f1f,
-        emissiveIntensity: 1.4,
+        emissiveIntensity: 2.2,
         roughness: 0.25
       })
     );
     flameCore.position.y = 0.92;
     this.group.add(flameCore);
+    this.flameOuter = flameOuter;
+    this.flameCore = flameCore;
 
     this.flameLight.position.set(0, 1.8, 0);
-    this.flameLight.castShadow = true;
+    this.flameLight.castShadow = false;
     this.flameLight.shadow.mapSize.set(512, 512);
     this.group.add(this.flameLight);
   }

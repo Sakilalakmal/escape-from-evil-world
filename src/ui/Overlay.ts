@@ -1,98 +1,119 @@
+import { IntroScreen } from './IntroScreen';
+import { Objectives, type ObjectiveId } from './Objectives';
+
 export class Overlay {
   private readonly root: HTMLDivElement;
-  private readonly audioChip: HTMLDivElement;
-  private readonly modeChip: HTMLDivElement;
+  private readonly intro: IntroScreen;
+  private readonly hudPanel: HTMLDivElement;
+  private readonly audioIndicator: HTMLSpanElement;
   private readonly compassNeedle: HTMLDivElement;
-  private readonly hints: HTMLDivElement;
-  private readonly enterScreen: HTMLDivElement;
-
-  private enterHandler: (() => void) | null = null;
-  private hintsTimer = 0;
+  private readonly contextPrompt: HTMLDivElement;
+  private readonly pointerHint: HTMLDivElement;
+  private readonly fadeCurtain: HTMLDivElement;
+  private readonly objectives: Objectives;
 
   constructor() {
     this.root = document.createElement('div');
     this.root.className = 'overlay-root';
 
-    const panel = document.createElement('div');
-    panel.className = 'overlay-card';
+    this.intro = new IntroScreen();
 
-    const title = document.createElement('div');
-    title.className = 'overlay-title';
-    title.textContent = 'Jungle Ruins Playground';
+    this.hudPanel = document.createElement('div');
+    this.hudPanel.className = 'hud-panel';
+    this.hudPanel.innerHTML = `
+      <div class="hud-title">Field Overlay</div>
+      <div class="hud-controls">WASD move • Shift run • Space jump • Tab toggle HUD</div>
+      <div class="hud-row">
+        <span class="hud-audio">Audio: <strong>OFF</strong></span>
+      </div>
+      <div class="hud-compass">
+        <span class="compass-n">N</span>
+        <span class="compass-e">E</span>
+        <span class="compass-s">S</span>
+        <span class="compass-w">W</span>
+      </div>
+    `;
 
-    const subtitle = document.createElement('div');
-    subtitle.className = 'overlay-subtitle';
-    subtitle.textContent = 'Explore the jungle camp and ancient steps';
+    const audioStrong = this.hudPanel.querySelector<HTMLSpanElement>('.hud-audio strong');
+    if (!audioStrong) {
+      throw new Error('Missing HUD audio indicator.');
+    }
+    this.audioIndicator = audioStrong;
 
-    const chips = document.createElement('div');
-    chips.className = 'overlay-chips';
-
-    this.audioChip = document.createElement('div');
-    this.audioChip.className = 'overlay-chip';
-    this.audioChip.textContent = 'Audio OFF';
-
-    this.modeChip = document.createElement('div');
-    this.modeChip.className = 'overlay-chip';
-    this.modeChip.textContent = 'Mode: Explore';
-
-    chips.append(this.audioChip, this.modeChip);
-
-    const compass = document.createElement('div');
-    compass.className = 'overlay-compass';
-    compass.innerHTML =
-      '<span class="compass-n">N</span><span class="compass-e">E</span><span class="compass-s">S</span><span class="compass-w">W</span>';
-
+    const compass = this.hudPanel.querySelector<HTMLDivElement>('.hud-compass');
+    if (!compass) {
+      throw new Error('Missing HUD compass.');
+    }
     this.compassNeedle = document.createElement('div');
-    this.compassNeedle.className = 'overlay-compass-needle';
+    this.compassNeedle.className = 'hud-compass-needle';
     compass.appendChild(this.compassNeedle);
 
-    this.hints = document.createElement('div');
-    this.hints.className = 'overlay-hints';
-    this.hints.innerHTML =
-      '<div>WASD move • Shift run • Mouse look</div><div>Click to capture pointer • C debug camera</div>';
+    this.objectives = new Objectives([
+      { id: 'campfire', label: 'Reach the Campfire' },
+      { id: 'dancers', label: 'Meet the Dancers' },
+      { id: 'stairs', label: 'Climb the Ancient Steps' }
+    ]);
+    this.hudPanel.appendChild(this.objectives.element);
 
-    panel.append(title, subtitle, chips, compass, this.hints);
+    this.contextPrompt = document.createElement('div');
+    this.contextPrompt.className = 'context-prompt';
 
-    this.enterScreen = document.createElement('div');
-    this.enterScreen.className = 'enter-screen';
-    this.enterScreen.innerHTML =
-      '<div class="enter-card"><h1>Jungle Ruins Playground</h1><p>Click to enter</p></div>';
-    this.enterScreen.addEventListener('click', () => {
-      this.enterHandler?.();
-    });
+    this.pointerHint = document.createElement('div');
+    this.pointerHint.className = 'pointer-hint';
+    this.pointerHint.textContent = 'Click to recapture mouse look';
 
-    this.root.append(panel, this.enterScreen);
+    this.fadeCurtain = document.createElement('div');
+    this.fadeCurtain.className = 'fade-curtain';
+
+    this.root.append(
+      this.hudPanel,
+      this.contextPrompt,
+      this.pointerHint,
+      this.fadeCurtain,
+      this.intro.element
+    );
     document.body.appendChild(this.root);
   }
 
   onEnterRequest(handler: () => void): void {
-    this.enterHandler = handler;
+    this.intro.onEnterRequest(handler);
+  }
+
+  hideIntro(): void {
+    this.intro.hide();
+  }
+
+  setHudVisible(visible: boolean): void {
+    this.hudPanel.classList.toggle('is-hidden', !visible);
   }
 
   setAudioEnabled(enabled: boolean): void {
-    this.audioChip.textContent = enabled ? 'Audio ON' : 'Audio OFF';
-  }
-
-  setMode(mode: 'Explore' | 'Debug'): void {
-    this.modeChip.textContent = `Mode: ${mode}`;
+    this.audioIndicator.textContent = enabled ? 'ON' : 'OFF';
   }
 
   setCompassYaw(yaw: number): void {
     this.compassNeedle.style.transform = `translate(-50%, -100%) rotate(${(-yaw * 180) / Math.PI}deg)`;
   }
 
-  setEnterVisible(visible: boolean): void {
-    this.enterScreen.style.display = visible ? 'flex' : 'none';
+  setObjectiveCompleted(id: ObjectiveId, completed: boolean): void {
+    this.objectives.setCompleted(id, completed);
   }
 
-  fadeHintsAfter(delayMs: number): void {
-    if (this.hintsTimer !== 0) {
-      window.clearTimeout(this.hintsTimer);
-    }
+  setContextPrompt(text: string | null): void {
+    this.contextPrompt.textContent = text ?? '';
+    this.contextPrompt.classList.toggle('is-visible', text !== null);
+  }
 
-    this.hints.classList.remove('is-faded');
-    this.hintsTimer = window.setTimeout(() => {
-      this.hints.classList.add('is-faded');
-    }, delayMs);
+  setPointerHintVisible(visible: boolean): void {
+    this.pointerHint.classList.toggle('is-visible', visible);
+  }
+
+  fadeFromBlack(durationMs = 800): void {
+    this.fadeCurtain.style.transitionDuration = `${durationMs}ms`;
+    this.fadeCurtain.classList.add('is-visible');
+
+    window.setTimeout(() => {
+      this.fadeCurtain.classList.remove('is-visible');
+    }, 20);
   }
 }

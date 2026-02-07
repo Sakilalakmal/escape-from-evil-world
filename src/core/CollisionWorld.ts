@@ -37,6 +37,10 @@ export class CollisionWorld {
   private readonly walkableMeshes: THREE.Mesh[] = [];
   private readonly raycaster = new THREE.Raycaster();
   private readonly probeOrigin = new THREE.Vector3();
+  private readonly raycastDirection = new THREE.Vector3();
+  private readonly expandedMin = new THREE.Vector3();
+  private readonly expandedMax = new THREE.Vector3();
+  private readonly raycastHit = new THREE.Vector3();
 
   addBox(box: BoxCollider): void {
     this.colliders.push({
@@ -73,6 +77,77 @@ export class CollisionWorld {
     for (const surface of surfaces) {
       this.addWalkableSurface(surface);
     }
+  }
+
+  getGroundHeight(
+    x: number,
+    z: number,
+    originY = 2.5,
+    maxDistance = 8
+  ): number | null {
+    return this.sampleGroundHeight(x, z, originY, maxDistance);
+  }
+
+  capsuleIntersects(params: {
+    x: number;
+    z: number;
+    y: number;
+    radius: number;
+    height: number;
+    stepHeight?: number;
+  }): boolean {
+    return this.intersectsAt(
+      params.x,
+      params.z,
+      params.y,
+      params.radius,
+      params.height,
+      params.stepHeight ?? 0
+    );
+  }
+
+  raycastToColliders(
+    origin: THREE.Vector3,
+    target: THREE.Vector3,
+    clearance = 0.2
+  ): THREE.Vector3 {
+    this.raycastDirection.subVectors(target, origin);
+
+    if (this.raycastDirection.lengthSq() <= 1e-8) {
+      return target.clone();
+    }
+
+    let nearestT = 1;
+
+    for (const collider of this.colliders) {
+      this.expandedMin
+        .copy(collider.min)
+        .addScalar(-clearance);
+      this.expandedMax
+        .copy(collider.max)
+        .addScalar(clearance);
+
+      const hitT = intersectSegmentAabb(
+        origin,
+        this.raycastDirection,
+        this.expandedMin,
+        this.expandedMax
+      );
+
+      if (hitT !== null && hitT < nearestT) {
+        nearestT = hitT;
+      }
+    }
+
+    if (nearestT < 1) {
+      this.raycastHit
+        .copy(this.raycastDirection)
+        .multiplyScalar(Math.max(0, nearestT - 0.03))
+        .add(origin);
+      return this.raycastHit.clone();
+    }
+
+    return target.clone();
   }
 
   resolveMovement(params: CollisionResolveParams): CollisionResolveResult {
@@ -126,7 +201,9 @@ export class CollisionWorld {
 
     if (groundY !== null) {
       const climbHeight = groundY - params.position.y;
-      if (climbHeight <= params.stepHeight + 0.01) {
+      const distanceFromGround = params.position.y - groundY;
+      const withinSnapRange = distanceFromGround <= params.stepHeight + 0.15;
+      if (climbHeight <= params.stepHeight + 0.01 && withinSnapRange) {
         if (
           !this.intersectsAt(
             nextPosition.x,
@@ -141,11 +218,13 @@ export class CollisionWorld {
         }
       }
 
+      const grounded = nextPosition.y - groundY <= 0.12;
+
       return {
         position: nextPosition,
         collided,
-        grounded: true,
-        groundY: nextPosition.y
+        grounded,
+        groundY
       };
     }
 
@@ -202,6 +281,51 @@ export class CollisionWorld {
 
     return false;
   }
+}
+
+function intersectSegmentAabb(
+  origin: THREE.Vector3,
+  direction: THREE.Vector3,
+  min: THREE.Vector3,
+  max: THREE.Vector3
+): number | null {
+  let tMin = 0;
+  let tMax = 1;
+
+  const axes: Array<'x' | 'y' | 'z'> = ['x', 'y', 'z'];
+
+  for (const axis of axes) {
+    const rayOrigin = origin[axis];
+    const rayDirection = direction[axis];
+    const minValue = min[axis];
+    const maxValue = max[axis];
+
+    if (Math.abs(rayDirection) < 1e-7) {
+      if (rayOrigin < minValue || rayOrigin > maxValue) {
+        return null;
+      }
+      continue;
+    }
+
+    const inverseDirection = 1 / rayDirection;
+    let t1 = (minValue - rayOrigin) * inverseDirection;
+    let t2 = (maxValue - rayOrigin) * inverseDirection;
+
+    if (t1 > t2) {
+      const swap = t1;
+      t1 = t2;
+      t2 = swap;
+    }
+
+    tMin = Math.max(tMin, t1);
+    tMax = Math.min(tMax, t2);
+
+    if (tMin > tMax) {
+      return null;
+    }
+  }
+
+  return tMin >= 0 && tMin <= 1 ? tMin : null;
 }
 
 function circleIntersectsBoxXZ(
