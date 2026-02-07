@@ -68,7 +68,7 @@ export class DancingCrowd {
     this.zoneCenter = zoneCenter.clone();
     this.count = Math.min(Math.max(count, 6), 12);
     this.group.name = 'DanceZoneCrowd';
-    this.zoneAnchor.position.copy(this.zoneCenter).setY(1.5);
+    this.zoneAnchor.position.copy(this.zoneCenter).setY(1.8);
   }
 
   async load(): Promise<void> {
@@ -138,10 +138,8 @@ export class DancingCrowd {
   }
 
   private getNpcPosition(index: number): THREE.Vector3 {
-    const arc = Math.PI * 0.9;
-    const start = -Math.PI * 0.75;
-    const angle = start + (arc * index) / Math.max(this.count - 1, 1);
-    const radius = 6.5 + Math.random() * 2.2;
+    const angle = (index / this.count) * Math.PI * 2 + Math.PI * 0.18;
+    const radius = 8.2 + Math.random() * 1.4;
 
     return new THREE.Vector3(
       this.zoneCenter.x + Math.cos(angle) * radius + (Math.random() - 0.5) * 0.8,

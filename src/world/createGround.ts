@@ -10,9 +10,9 @@ function createGroundTexture(): THREE.CanvasTexture | null {
     return null;
   }
 
-  ctx.fillStyle = '#1a2a1f';
+  ctx.fillStyle = '#2d5a33';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#223529';
+  ctx.fillStyle = '#3a6a3e';
 
   for (let y = 0; y < canvas.height; y += 16) {
     for (let x = 0; x < canvas.width; x += 16) {
@@ -33,9 +33,9 @@ function createGroundTexture(): THREE.CanvasTexture | null {
 export function createGround(): THREE.Mesh {
   const texture = createGroundTexture();
   const material = new THREE.MeshStandardMaterial({
-    color: 0x263827,
+    color: 0x3f6d3d,
     map: texture ?? undefined,
-    roughness: 0.92,
+    roughness: 0.94,
     metalness: 0.02
   });
 

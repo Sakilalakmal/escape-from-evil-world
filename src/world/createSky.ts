@@ -5,8 +5,8 @@ export function createSky(scene: THREE.Scene): THREE.Mesh {
   const skyMaterial = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     uniforms: {
-      topColor: { value: new THREE.Color(0x0b1830) },
-      bottomColor: { value: new THREE.Color(0x02050a) }
+      topColor: { value: new THREE.Color(0x4f8f6b) },
+      bottomColor: { value: new THREE.Color(0x8fc188) }
     },
     vertexShader: `
       varying vec3 vWorldPosition;
@@ -30,7 +30,7 @@ export function createSky(scene: THREE.Scene): THREE.Mesh {
   });
 
   const sky = new THREE.Mesh(skyGeometry, skyMaterial);
-  scene.background = new THREE.Color(0x050a12);
+  scene.background = new THREE.Color(0x86b88a);
   scene.add(sky);
   return sky;
 }

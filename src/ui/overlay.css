@@ -1,3 +1,14 @@
+:root {
+  --jungle-green: #2f7f43;
+  --moss: #4d7d53;
+  --fire-orange: #ff8f2d;
+  --accent-cyan: #67d8cf;
+  --panel-bg: rgba(9, 22, 19, 0.55);
+  --panel-stroke: rgba(127, 255, 219, 0.28);
+  --text-main: #e8f8ee;
+  --text-soft: rgba(232, 248, 238, 0.74);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -9,7 +20,7 @@ body,
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #040910;
+  background: #5f9264;
 }
 
 canvas {
@@ -18,31 +29,169 @@ canvas {
   height: 100%;
 }
 
-.hud {
+.overlay-root {
   position: fixed;
-  top: 16px;
-  left: 16px;
-  z-index: 10;
-  padding: 10px 12px;
-  background: rgba(4, 11, 20, 0.68);
-  border: 1px solid rgba(113, 150, 181, 0.38);
-  border-radius: 8px;
-  color: #dbe8f6;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  font-size: 13px;
-  line-height: 1.3;
+  inset: 0;
+  z-index: 14;
   pointer-events: none;
 }
 
-.hud-line + .hud-line {
-  margin-top: 2px;
+.overlay-card {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  width: min(320px, calc(100vw - 24px));
+  padding: 14px 14px 12px;
+  border-radius: 16px;
+  background: linear-gradient(var(--panel-bg), var(--panel-bg)) padding-box,
+    linear-gradient(125deg, rgba(103, 216, 207, 0.75), rgba(255, 143, 45, 0.7))
+      border-box;
+  border: 1px solid transparent;
+  backdrop-filter: blur(9px);
+  color: var(--text-main);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
 }
 
-.hud-audio {
-  margin-top: 6px;
+.overlay-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
 }
 
-.hud-audio-hint {
-  margin-top: 3px;
-  color: #ffd79f;
+.overlay-subtitle {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.overlay-chips {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.overlay-chip {
+  border: 1px solid var(--panel-stroke);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.overlay-compass {
+  margin-top: 12px;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: 1px solid rgba(103, 216, 207, 0.45);
+  position: relative;
+  background: radial-gradient(circle, rgba(14, 30, 26, 0.78), rgba(8, 20, 18, 0.6));
+}
+
+.overlay-compass span {
+  position: absolute;
+  font-size: 10px;
+  color: var(--text-soft);
+}
+
+.compass-n {
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.compass-e {
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+}
+
+.compass-s {
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.compass-w {
+  top: 50%;
+  left: 8px;
+  transform: translateY(-50%);
+}
+
+.overlay-compass-needle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 28px;
+  border-radius: 3px;
+  background: linear-gradient(var(--accent-cyan), var(--fire-orange));
+  transform-origin: 50% 100%;
+  transform: translate(-50%, -100%);
+  box-shadow: 0 0 8px rgba(103, 216, 207, 0.6);
+}
+
+.overlay-hints {
+  margin-top: 12px;
+  display: grid;
+  gap: 3px;
+  font-size: 11px;
+  color: rgba(232, 248, 238, 0.86);
+  transition: opacity 0.8s ease;
+}
+
+.overlay-hints.is-faded {
+  opacity: 0;
+}
+
+.enter-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(
+    circle at 50% 45%,
+    rgba(51, 105, 70, 0.62),
+    rgba(3, 10, 8, 0.82)
+  );
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.enter-card {
+  border: 1px solid rgba(103, 216, 207, 0.52);
+  border-radius: 18px;
+  padding: 24px 30px;
+  text-align: center;
+  background: rgba(7, 22, 18, 0.72);
+  backdrop-filter: blur(8px);
+  color: var(--text-main);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+.enter-card h1 {
+  margin: 0;
+  font-size: clamp(22px, 4vw, 34px);
+}
+
+.enter-card p {
+  margin: 8px 0 0;
+  color: var(--text-soft);
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .overlay-card {
+    top: 10px;
+    left: 10px;
+    padding: 12px;
+  }
+
+  .overlay-title {
+    font-size: 14px;
+  }
 }

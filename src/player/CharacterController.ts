@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { CollisionWorld } from '../core/CollisionWorld';
 import type { Input } from '../core/Input';
 import type { Player } from './Player';
 
@@ -7,11 +8,15 @@ export type MovementState = {
   running: boolean;
 };
 
+const PLAYER_RADIUS = 0.44;
+const PLAYER_HEIGHT = 1.9;
+const PLAYER_STEP_HEIGHT = 0.48;
+
 const UP = new THREE.Vector3(0, 1, 0);
 
 export class CharacterController {
-  speedWalk = 3.4;
-  speedRun = 6.7;
+  speedWalk = 3.8;
+  speedRun = 7.2;
   acceleration = 14;
   turnSpeed = 12;
 
@@ -20,30 +25,26 @@ export class CharacterController {
   private readonly forward = new THREE.Vector3();
   private readonly right = new THREE.Vector3();
   private readonly desiredDirection = new THREE.Vector3();
+  private readonly moveDelta = new THREE.Vector3();
   private readonly targetRotation = new THREE.Quaternion();
+  private readonly resolvedPosition = new THREE.Vector3();
 
   constructor(
     private readonly player: Player,
     private readonly input: Input,
-    private readonly referenceCamera: THREE.Camera
+    private readonly collisionWorld: CollisionWorld,
+    private readonly getYaw: () => number
   ) {}
 
   update(deltaSeconds: number): MovementState {
     const axes = this.input.getMovementAxes();
     const hasInput = axes.x !== 0 || axes.z !== 0;
-    const isRunningKeyDown =
-      this.input.isDown('ShiftLeft') || this.input.isDown('ShiftRight');
+    const isRunning =
+      hasInput && (this.input.isDown('ShiftLeft') || this.input.isDown('ShiftRight'));
 
-    this.referenceCamera.getWorldDirection(this.forward);
-    this.forward.y = 0;
-
-    if (this.forward.lengthSq() < 1e-6) {
-      this.forward.set(0, 0, 1);
-    } else {
-      this.forward.normalize();
-    }
-
-    this.right.crossVectors(this.forward, UP).normalize();
+    const yaw = this.getYaw();
+    this.forward.set(Math.sin(yaw), 0, Math.cos(yaw)).normalize();
+    this.right.set(this.forward.z, 0, -this.forward.x).normalize();
 
     this.desiredDirection
       .copy(this.forward)
@@ -54,40 +55,44 @@ export class CharacterController {
       this.desiredDirection.normalize();
     }
 
-    const targetSpeed = hasInput
-      ? isRunningKeyDown
-        ? this.speedRun
-        : this.speedWalk
-      : 0;
-
+    const targetSpeed = hasInput ? (isRunning ? this.speedRun : this.speedWalk) : 0;
     this.desiredVelocity.copy(this.desiredDirection).multiplyScalar(targetSpeed);
 
     const velocityLerp = 1 - Math.exp(-this.acceleration * deltaSeconds);
     this.velocity.lerp(this.desiredVelocity, velocityLerp);
+    this.moveDelta.copy(this.velocity).multiplyScalar(deltaSeconds);
 
-    this.player.object.position.addScaledVector(this.velocity, deltaSeconds);
-    this.player.object.position.y = 0;
+    const collision = this.collisionWorld.resolveMovement({
+      position: this.player.object.position,
+      delta: this.moveDelta,
+      radius: PLAYER_RADIUS,
+      height: PLAYER_HEIGHT,
+      stepHeight: PLAYER_STEP_HEIGHT
+    });
 
-    const speed = this.velocity.length();
-    const moving = speed > 0.15;
-    const running = moving && isRunningKeyDown;
+    this.resolvedPosition.copy(collision.position);
+    if (!collision.grounded) {
+      this.resolvedPosition.y = Math.max(0, this.resolvedPosition.y - deltaSeconds * 5.5);
+    }
+    this.player.object.position.copy(this.resolvedPosition);
+
+    const moving = this.velocity.lengthSq() > 0.07;
 
     if (moving) {
-      const targetYaw = Math.atan2(this.desiredDirection.x, this.desiredDirection.z);
-      this.targetRotation.setFromAxisAngle(UP, targetYaw);
-
+      const heading = Math.atan2(this.desiredDirection.x, this.desiredDirection.z);
+      this.targetRotation.setFromAxisAngle(UP, heading);
       const rotationLerp = 1 - Math.exp(-this.turnSpeed * deltaSeconds);
       this.player.object.quaternion.slerp(this.targetRotation, rotationLerp);
     }
 
     if (!moving) {
       this.player.setAnimation('idle');
-    } else if (running) {
+    } else if (isRunning) {
       this.player.setAnimation('run');
     } else {
       this.player.setAnimation('walk');
     }
 
-    return { moving, running };
+    return { moving, running: moving && isRunning };
   }
 }
